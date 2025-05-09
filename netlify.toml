@@ -1,5 +1,5 @@
 [build]
-  command = "CI=false SKIP_TYPESCRIPT_CHECK=1 NEXT_DISABLE_ESLINT=1 TYPESCRIPT_IGNORE_ERRORS=1 npm run netlify-build"
+  command = "npm run netlify-build && npm run build"
   publish = ".next"
 
 [build.environment]
@@ -19,12 +19,20 @@
 
 [functions]
   node_bundler = "esbuild"
-  included_files = ["app/lib/build-bypass/**"]
+  external_node_modules = ["sharp"]
+  included_files = ["app/lib/build-bypass/**", "app/lib/**", "node_modules/**"]
+  timeout = 30  # Increase timeout to 30 seconds
 
 # Handle redirects for Next.js
 [[redirects]]
   from = "/*"
   to = "/index.html"
+  status = 200
+
+# Special redirect for API routes (ensure API endpoints work)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
   status = 200
 
 # Environment variable configuration for different contexts
