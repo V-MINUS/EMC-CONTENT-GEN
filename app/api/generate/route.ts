@@ -1,91 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  createAIServices, 
-  TextGenerationOptions, 
-  ImageGenerationOptions,
-  SEOOptions
-} from '../../lib/ai-services';
+import { createAIServices, TextGenerationOptions, ImageGenerationOptions, SEOOptions } from '../../lib/ai-services';
 import { enhancePrompt, handleApiError } from '../../utils/ai-utils';
+import { getSafeServices } from '../../lib/build-bypass';
 
-// **CRITICAL BUILD FIX**
-// This special check completely bypasses API key validation during Vercel builds
-// This prevents build failures when API keys aren't available during build time
-const IS_BUILD_TIME = process.env.NODE_ENV !== 'production' || 
-                    process.env.VERCEL_ENV === 'preview' || 
-                    process.env.VERCEL_BUILD_STEP === 'true' ||
-                    process.env.VERCEL_BUILD_MODE === 'true';
-
-// Debug env info (will only run during build)
-console.log(`Build environment: NODE_ENV=${process.env.NODE_ENV}, VERCEL_ENV=${process.env.VERCEL_ENV}`);
-console.log(`OpenAI API Key present: ${!!process.env.OPENAI_API_KEY}`);
-console.log(`DeepSeek API Key present: ${!!process.env.DEEPSEEK_API_KEY}`);
-
-// Build-time mock services
-const MOCK_SERVICES = {
-  textGenerator: {
-    generateContent: (prompt: string) => Promise.resolve(
-      `# Mock Electronic Music Content\n\nThis is placeholder content for "${prompt}"`
-    )
-  },
-  imageGenerator: {
-    generateImage: () => Promise.resolve(
-      'https://placehold.co/600x400?text=Electronic+Music+Content'
-    )
-  },
-  seoOptimizer: {
-    optimizeContent: (content: string) => Promise.resolve({ 
-      optimizedContent: content, 
-      seoScore: 85, 
-      keywordDensity: {} 
-    }),
-    suggestKeywords: () => Promise.resolve(['electronic music', 'EDM', 'production']),
-    generateMetaTags: () => Promise.resolve({
-      title: 'EMC Content',
-      description: 'Electronic Music Content',
-      keywords: 'electronic music'
-    })
-  },
-  plagiarismDetector: {
-    checkPlagiarism: () => Promise.resolve({
-      isOriginal: true,
-      similarityScore: 5,
-      matches: []
-    })
-  }
-};
-
-// We'll initialize AI services per request to avoid build-time errors
-let aiServices: ReturnType<typeof createAIServices> | null = null;
-
-// Only initialize services when needed
-function getAIServices() {
-  // Use mock services during build time
-  if (IS_BUILD_TIME) {
-    console.log('Using MOCK AI services during build');
-    return MOCK_SERVICES;
-  }
-
-  if (!aiServices) {
-    // In production with real requests, API keys are required
-    if (!process.env.OPENAI_API_KEY && process.env.NODE_ENV === 'production') {
-      console.log('API key missing in production - this should not happen if environment variables are set correctly');
-      throw new Error('OpenAI API key is required for production use. Please add it to your environment variables.');
-    }
-    
-    try {
-      aiServices = createAIServices();
-      console.log('Initialized AI services with API keys');
-    } catch (error) {
-      console.error('Failed to initialize AI services:', error);
-      return MOCK_SERVICES; // Fallback to mock services if initialization fails
-    }
-  }
-  
-  return aiServices;
-}
+// Initialize services with build-safe approach
+const services = getSafeServices(createAIServices);
 
 // Cache for plagiarism and SEO results to avoid redundant API calls
-// In a production app, this would use Redis or a similar solution
 interface CachedResult {
   value: unknown;
   timestamp: number;
@@ -96,7 +17,7 @@ const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 // Middleware to log all API requests
 const logRequest = (method: string, data: Record<string, unknown>) => {
-  console.log(`API ${method} request:`, {
+  console.log(`EMC Generator API ${method} request:`, {
     timestamp: new Date().toISOString(),
     data: JSON.stringify(data).substring(0, 100) + '...'
   });
@@ -142,8 +63,8 @@ export async function POST(request: NextRequest) {
       ethicalChecks: ethicalCheckEnabled !== false // Default to true
     };
 
-    // Initialize services and generate content
-    let content = await getAIServices().textGenerator.generateContent(enhancedPrompt, textOptions);
+    // Initial content generation is required before other operations
+    let content = await services.textGenerator.generateContent(enhancedPrompt, textOptions);
     
     // Generate a cache key for this content
     const contentHash = Buffer.from(content.substring(0, 100)).toString('base64');
@@ -162,7 +83,7 @@ export async function POST(request: NextRequest) {
         results.plagiarismCheck = cachedPlagiarism;
       } else {
         operations.push(
-          getAIServices().plagiarismDetector.checkPlagiarism(content)
+          services.plagiarismDetector.checkPlagiarism(content)
             .then(plagiarismResult => {
               results.plagiarismCheck = plagiarismResult;
               
@@ -186,24 +107,24 @@ export async function POST(request: NextRequest) {
                 content = regeneratedContent;
                 
                 // Recheck plagiarism for regenerated content
-                return getAIServices().plagiarismDetector.checkPlagiarism(content);
+                return services.plagiarismDetector.checkPlagiarism(content);
               }
               return null;
             })
-            .then(newPlagiarismResult => {
-              if (newPlagiarismResult) {
-                results.plagiarismCheck = newPlagiarismResult;
+            .then(recheckResult => {
+              if (recheckResult) {
+                results.plagiarismCheck = recheckResult;
                 
-                // Update cache with new result
+                // Update the cache with the new result
                 resultsCache.set(`plagiarism:${contentHash}`, {
-                  value: newPlagiarismResult,
+                  value: recheckResult,
                   timestamp: Date.now()
                 });
               }
             })
             .catch(error => {
               console.error('Plagiarism check error:', error);
-              // Continue without plagiarism check if it fails
+              results.plagiarismError = handleApiError(error);
             })
         );
       }
@@ -211,37 +132,39 @@ export async function POST(request: NextRequest) {
     
     // 2. SEO optimization
     if (optimizeSeo) {
-      // Check if we have a cached result first
-      const cachedEntry = resultsCache.get(`seo:${contentHash}`);
-      const cachedSeo = cachedEntry?.value;
-      
-      if (cachedSeo) {
-        results.seoOptimization = cachedSeo;
-      } else {
-        operations.push(
-          (async () => {
-            try {
+      operations.push(
+        (async () => {
+          try {
+            // Check if we have a cached result first
+            const cachedEntry = resultsCache.get(`seo:${contentHash}`);
+            const cachedSeo = cachedEntry?.value;
+            
+            if (cachedSeo) {
+              results.seoOptimization = cachedSeo;
+              
+              // Use the cached optimized content if available
+              if (cachedSeo.optimizedContent) {
+                content = cachedSeo.optimizedContent;
+              }
+            } else {
               // Parse keywords from the request or extract from content
               const keywordList = keywords 
                 ? (typeof keywords === 'string' ? keywords.split(',') : keywords) 
-                : await getAIServices().seoOptimizer.suggestKeywords(topic || category, 'electronic music');
+                : await services.seoOptimizer.suggestKeywords(topic || category, 'electronic music');
               
               // SEO optimization options
               const seoOptions: SEOOptions = {
-                targetReadability: 'high',
-                includeHeadings: true,
-                targetKeywordDensity: 2.0 // percentage
+                targetLength: length || 'medium',
+                platform: platform || 'blog'
               };
               
               // Optimize the content
-              const seoResult = await getAIServices().seoOptimizer.optimizeContent(content, keywordList, seoOptions);
+              const seoResult = await services.seoOptimizer.optimizeContent(content, keywordList, seoOptions);
               
               // Use the optimized content
               if (seoResult && seoResult.optimizedContent) {
                 content = seoResult.optimizedContent;
               }
-              
-              results.seoOptimization = seoResult;
               
               // Cache the result
               resultsCache.set(`seo:${contentHash}`, {
@@ -250,22 +173,21 @@ export async function POST(request: NextRequest) {
               });
               setTimeout(() => resultsCache.delete(`seo:${contentHash}`), CACHE_TTL);
               
-              // Generate meta tags if applicable
-              if (category === 'blog' || category === 'seo') {
-                // Extract a title from the content or use the topic
-                const titleMatch = content.match(/^#\s(.*?)$/m); // Look for markdown title
-                const extractedTitle = titleMatch ? titleMatch[1] : topic || 'Electronic Music Content';
-                
-                const metaTags = await getAIServices().seoOptimizer.generateMetaTags(content, extractedTitle);
-                results.metaTags = metaTags;
-              }
-            } catch (error) {
-              console.error('SEO optimization error:', error);
-              // Continue without SEO optimization if it fails
+              results.seoOptimization = seoResult;
+              
+              // Also generate meta tags for the content
+              const titleMatch = content.match(/^#\s(.*?)$/m); // Look for markdown title
+              const extractedTitle = titleMatch ? titleMatch[1] : topic || 'Electronic Music Content';
+              
+              const metaTags = await services.seoOptimizer.generateMetaTags(content, extractedTitle);
+              results.metaTags = metaTags;
             }
-          })()
-        );
-      }
+          } catch (error) {
+            console.error('SEO optimization error:', error);
+            results.seoError = handleApiError(error);
+          }
+        })()
+      );
     }
     
     // 3. Image generation
@@ -273,127 +195,147 @@ export async function POST(request: NextRequest) {
       operations.push(
         (async () => {
           try {
-            // Extract key terms for image generation
-            const imagePrompt = `Electronic music ${category} visual inspired by: ${prompt.substring(0, 100)}`;
+            // Extract a good image prompt from the content
+            const firstParagraphMatch = content.match(/^#\s.*?\n\n(.*?)(\n\n|$)/s);
+            const imagePrompt = firstParagraphMatch 
+              ? `electronic music visual: ${firstParagraphMatch[1].substring(0, 100)}`
+              : `electronic music visual related to: ${prompt}`;
             
             // Image generation options
             const imageOptions: ImageGenerationOptions = {
-              size: '1024x1024',
-              style: category === 'social' ? 'vibrant' : 'professional',
+              size: '512x512',
+              style: 'vivid',
               quality: 'hd'
             };
             
-            const imageUrl = await getAIServices().imageGenerator.generateImage(imagePrompt, imageOptions);
+            const imageUrl = await services.imageGenerator.generateImage(imagePrompt, imageOptions);
             results.imageUrl = imageUrl;
           } catch (error) {
             console.error('Image generation error:', error);
-            // Continue without an image if generation fails
+            results.imageError = handleApiError(error);
           }
         })()
       );
     }
     
-    // 4. Keyword suggestion (always run for better UX)
+    // 4. Keyword suggestions
     operations.push(
       (async () => {
         try {
-          const suggestedKeywords = await getAIServices().seoOptimizer.suggestKeywords(
+          const suggestedKeywords = await services.seoOptimizer.suggestKeywords(
             topic || category, 
             'electronic music'
           );
           results.suggestedKeywords = suggestedKeywords;
         } catch (error) {
           console.error('Keyword suggestion error:', error);
-          // Continue without suggested keywords if generation fails
+          results.keywordError = handleApiError(error);
         }
       })()
     );
     
     // Wait for all operations to complete
     await Promise.all(operations);
-
+    
+    // Return the final enhanced content and results
     return NextResponse.json({
       content,
-      imageUrl: results.imageUrl || null,
-      plagiarismCheck: results.plagiarismCheck || null,
-      seoOptimization: results.seoOptimization || null,
-      metaTags: results.metaTags || null,
-      suggestedKeywords: results.suggestedKeywords || [],
-      category,
-      platform
+      ...results
     });
   } catch (error) {
-    console.error('Error generating content:', error);
-    // Always provide detailed error message for better debugging
-    const errorMessage = `Failed to generate content: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    console.error('Content generation error:', error);
+    return NextResponse.json({ 
+      error: handleApiError(error) 
+    }, { 
+      status: 500 
+    });
   }
 }
 
 // Helper function to regenerate content with more originality
 async function regenerateContent(enhancedPrompt: string, textOptions: TextGenerationOptions): Promise<string> {
-  // Add originality request to prompt
-  const originalityPrompt = `${enhancedPrompt} Make sure the content is 100% original and does not resemble existing content. Be creative and unique.`;
+  // Enhance the prompt to request more originality
+  const originalityPrompt = `
+    ${enhancedPrompt}
+    
+    IMPORTANT: Generate COMPLETELY ORIGINAL content. Avoid common phrases and formats.
+    Be creative, unique, and innovative in your language and structure.
+  `;
   
-  // Increase temperature for more creativity
+  // Adjust options for more creative output
   const regenerateOptions = {
     ...textOptions,
-    temperature: 0.9
+    temperature: 0.9, // Higher temperature for more randomness
+    ethicalChecks: true
   };
   
   // Generate more original content
-  return getAIServices().textGenerator.generateContent(originalityPrompt, regenerateOptions);
+  return services.textGenerator.generateContent(originalityPrompt, regenerateOptions);
 }
 
 // Human-in-the-loop editing endpoint
 export async function PUT(request: NextRequest) {
-  // Log the incoming request
   logRequest('PUT', await request.clone().json().catch(() => ({})));
+  
   try {
     const { 
       content, 
-      editInstruction,
-      preserveSections,
+      refinement, 
+      instructions,
       tone
     } = await request.json();
-
-    if (!content || !editInstruction) {
+    
+    if (!content) {
       return NextResponse.json(
-        { error: 'Content and edit instruction are required' },
+        { error: 'Original content is required' },
         { status: 400 }
       );
     }
-
-    // Create prompt for the refinement
+    
+    if (!refinement && !instructions) {
+      return NextResponse.json(
+        { error: 'Either refinement or instructions are required' },
+        { status: 400 }
+      );
+    }
+    
+    // Construct a prompt for the refinement
     const refinementPrompt = `
-I have the following content:
-
-${content}
-
-Please ${editInstruction}. ${preserveSections ? 'Preserve the following sections: ' + preserveSections.join(', ') : ''}
-${tone ? `Maintain a ${tone} tone.` : ''}
-`;
-
-    // Generate the refined content
+      ORIGINAL CONTENT:
+      ${content}
+      
+      ${refinement ? `USER REFINEMENT:
+      ${refinement}` : ''}
+      
+      ${instructions ? `INSTRUCTIONS:
+      ${instructions}` : ''}
+      
+      Please refine the original content based on the user's input while maintaining the overall message and quality.
+      Use a ${tone || 'professional'} tone.
+    `;
+    
+    // Options for content refinement
     const textOptions: TextGenerationOptions = {
       tone: tone || 'professional',
-      temperature: 0.4, // Lower temperature for more controlled edits
+      length: 'medium',
+      temperature: 0.7,
       ethicalChecks: true
     };
 
-    const refinedContent = await getAIServices().textGenerator.generateContent(refinementPrompt, textOptions);
+    const refinedContent = await services.textGenerator.generateContent(refinementPrompt, textOptions);
 
     return NextResponse.json({
       originalContent: content,
       refinedContent,
-      editInstruction
+      refinement,
+      instructions
     });
   } catch (error) {
-    const { error: errorMessage, status } = handleApiError(error, 'Failed to refine content');
-    return NextResponse.json({ error: errorMessage }, { status });
+    console.error('Content refinement error:', error);
+    return NextResponse.json({ 
+      error: handleApiError(error) 
+    }, { 
+      status: 500 
+    });
   }
 }
