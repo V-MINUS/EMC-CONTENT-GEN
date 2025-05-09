@@ -7,8 +7,23 @@ import {
 } from '../../lib/ai-services';
 import { enhancePrompt, handleApiError } from '../../utils/ai-utils';
 
-// Get AI services based on environment configuration
-const aiServices = createAIServices();
+// We'll initialize AI services per request to avoid build-time errors
+let aiServices: ReturnType<typeof createAIServices> | null = null;
+
+// Only initialize services when needed
+function getAIServices() {
+  if (!aiServices) {
+    // Check API keys at request time, not build time
+    if (!process.env.OPENAI_API_KEY && process.env.NODE_ENV === 'production') {
+      throw new Error('OpenAI API key is required for production use. Please add it to your environment variables.');
+    }
+    
+    aiServices = createAIServices();
+    console.log('Initialized AI services with API keys');
+  }
+  
+  return aiServices;
+}
 
 // Cache for plagiarism and SEO results to avoid redundant API calls
 // In a production app, this would use Redis or a similar solution
@@ -59,7 +74,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Initial content generation is required before other operations
-    let content = await aiServices.textGenerator.generateContent(enhancedPrompt, textOptions);
+    let content = await getAIServices().textGenerator.generateContent(enhancedPrompt, textOptions);
     
     // Generate a cache key for this content
     const contentHash = Buffer.from(content.substring(0, 100)).toString('base64');
@@ -78,7 +93,7 @@ export async function POST(request: NextRequest) {
         results.plagiarismCheck = cachedPlagiarism;
       } else {
         operations.push(
-          aiServices.plagiarismDetector.checkPlagiarism(content)
+          getAIServices().plagiarismDetector.checkPlagiarism(content)
             .then(plagiarismResult => {
               results.plagiarismCheck = plagiarismResult;
               
@@ -102,7 +117,7 @@ export async function POST(request: NextRequest) {
                 content = regeneratedContent;
                 
                 // Recheck plagiarism for regenerated content
-                return aiServices.plagiarismDetector.checkPlagiarism(content);
+                return getAIServices().plagiarismDetector.checkPlagiarism(content);
               }
               return null;
             })
@@ -140,7 +155,7 @@ export async function POST(request: NextRequest) {
               // Parse keywords from the request or extract from content
               const keywordList = keywords 
                 ? (typeof keywords === 'string' ? keywords.split(',') : keywords) 
-                : await aiServices.seoOptimizer.suggestKeywords(topic || category, 'electronic music');
+                : await getAIServices().seoOptimizer.suggestKeywords(topic || category, 'electronic music');
               
               // SEO optimization options
               const seoOptions: SEOOptions = {
@@ -150,7 +165,7 @@ export async function POST(request: NextRequest) {
               };
               
               // Optimize the content
-              const seoResult = await aiServices.seoOptimizer.optimizeContent(content, keywordList, seoOptions);
+              const seoResult = await getAIServices().seoOptimizer.optimizeContent(content, keywordList, seoOptions);
               
               // Use the optimized content
               if (seoResult && seoResult.optimizedContent) {
@@ -172,7 +187,7 @@ export async function POST(request: NextRequest) {
                 const titleMatch = content.match(/^#\s(.*?)$/m); // Look for markdown title
                 const extractedTitle = titleMatch ? titleMatch[1] : topic || 'Electronic Music Content';
                 
-                const metaTags = await aiServices.seoOptimizer.generateMetaTags(content, extractedTitle);
+                const metaTags = await getAIServices().seoOptimizer.generateMetaTags(content, extractedTitle);
                 results.metaTags = metaTags;
               }
             } catch (error) {
@@ -199,7 +214,7 @@ export async function POST(request: NextRequest) {
               quality: 'hd'
             };
             
-            const imageUrl = await aiServices.imageGenerator.generateImage(imagePrompt, imageOptions);
+            const imageUrl = await getAIServices().imageGenerator.generateImage(imagePrompt, imageOptions);
             results.imageUrl = imageUrl;
           } catch (error) {
             console.error('Image generation error:', error);
@@ -213,7 +228,7 @@ export async function POST(request: NextRequest) {
     operations.push(
       (async () => {
         try {
-          const suggestedKeywords = await aiServices.seoOptimizer.suggestKeywords(
+          const suggestedKeywords = await getAIServices().seoOptimizer.suggestKeywords(
             topic || category, 
             'electronic music'
           );
@@ -259,7 +274,7 @@ async function regenerateContent(enhancedPrompt: string, textOptions: TextGenera
   };
   
   // Generate more original content
-  return aiServices.textGenerator.generateContent(originalityPrompt, regenerateOptions);
+  return getAIServices().textGenerator.generateContent(originalityPrompt, regenerateOptions);
 }
 
 // Human-in-the-loop editing endpoint
@@ -296,7 +311,7 @@ ${tone ? `Maintain a ${tone} tone.` : ''}
       ethicalChecks: true
     };
 
-    const refinedContent = await aiServices.textGenerator.generateContent(refinementPrompt, textOptions);
+    const refinedContent = await getAIServices().textGenerator.generateContent(refinementPrompt, textOptions);
 
     return NextResponse.json({
       originalContent: content,
