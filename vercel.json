@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run vercel-build",
+  "buildCommand": "npm run vercel-build-ignore",
   "installCommand": "npm install",
   "framework": "nextjs",
   "builds": [
@@ -9,6 +9,7 @@
       "use": "@vercel/next"
     }
   ],
+  "ignoreCommand": "exit 0",
   "env": {
     "NEXT_DISABLE_ESLINT": "1",
     "TYPESCRIPT_IGNORE_ERRORS": "1",

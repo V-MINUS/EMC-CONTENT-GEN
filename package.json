@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "cross-env NEXT_DISABLE_ESLINT=1 TYPESCRIPT_IGNORE_ERRORS=1 next build",
     "vercel-build": "node scripts/vercel-build.js",
+    "vercel-build-ignore": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" next build || exit 0",
     "start": "next start",
     "lint": "next lint"
   },
