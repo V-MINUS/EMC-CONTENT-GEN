@@ -17,11 +17,12 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Functions configuration with increased timeout
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["sharp"]
   included_files = ["app/lib/build-bypass/**", "app/lib/**", "node_modules/**"]
-  timeout = 30  # Increase timeout to 30 seconds
+  timeout = 30
 
 # Handle redirects for Next.js
 [[redirects]]
