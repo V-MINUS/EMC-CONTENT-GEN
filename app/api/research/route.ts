@@ -33,10 +33,11 @@ export async function POST(request: NextRequest) {
       query,
       researchType
     });
-  } catch (error: any) {
+  } catch (error: Error | unknown) {
     console.error('Error in research API:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Failed to generate research' },
+      { error: errorMessage || 'Failed to generate research' },
       { status: 500 }
     );
   }

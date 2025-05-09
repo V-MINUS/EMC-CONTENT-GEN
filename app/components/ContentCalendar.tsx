@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Calendar, Plus, CheckCircle, Edit, Trash, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -60,9 +59,9 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onEntrySelect }) => {
       
       const data = await response.json();
       setEntries(data.entries || []);
-    } catch (err: any) {
+    } catch (err: Error | unknown) {
       console.error('Error fetching calendar entries:', err);
-      setError(err.message || 'Failed to load calendar');
+      setError(err instanceof Error ? err.message : 'Failed to load calendar');
     } finally {
       setIsLoading(false);
     }

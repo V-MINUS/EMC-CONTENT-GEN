@@ -18,11 +18,16 @@ console.log(`DeepSeek API key present: ${!!process.env.DEEPSEEK_API_KEY}`);
 
 // Cache for plagiarism and SEO results to avoid redundant API calls
 // In a production app, this would use Redis or a similar solution
-const resultsCache = new Map<string, any>();
+interface CachedResult {
+  value: unknown;
+  timestamp: number;
+}
+
+const resultsCache = new Map<string, CachedResult>();
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 // Middleware to log all API requests
-const logRequest = (method: string, data: any) => {
+const logRequest = (method: string, data: Record<string, unknown>) => {
   console.log(`API ${method} request:`, {
     timestamp: new Date().toISOString(),
     data: JSON.stringify(data).substring(0, 100) + '...'
@@ -82,7 +87,8 @@ export async function POST(request: NextRequest) {
     // 1. Plagiarism check
     if (checkPlagiarism) {
       // Check if we have a cached result first
-      const cachedPlagiarism = resultsCache.get(`plagiarism:${contentHash}`);
+      const cachedEntry = resultsCache.get(`plagiarism:${contentHash}`);
+      const cachedPlagiarism = cachedEntry?.value;
       
       if (cachedPlagiarism) {
         results.plagiarismCheck = cachedPlagiarism;
@@ -93,7 +99,10 @@ export async function POST(request: NextRequest) {
               results.plagiarismCheck = plagiarismResult;
               
               // Cache the result
-              resultsCache.set(`plagiarism:${contentHash}`, plagiarismResult);
+              resultsCache.set(`plagiarism:${contentHash}`, {
+                value: plagiarismResult,
+                timestamp: Date.now()
+              });
               setTimeout(() => resultsCache.delete(`plagiarism:${contentHash}`), CACHE_TTL);
               
               // If content is not original enough, regenerate with higher creativity
@@ -118,7 +127,10 @@ export async function POST(request: NextRequest) {
                 results.plagiarismCheck = newPlagiarismResult;
                 
                 // Update cache with new result
-                resultsCache.set(`plagiarism:${contentHash}`, newPlagiarismResult);
+                resultsCache.set(`plagiarism:${contentHash}`, {
+                  value: newPlagiarismResult,
+                  timestamp: Date.now()
+                });
               }
             })
             .catch(error => {
@@ -132,7 +144,8 @@ export async function POST(request: NextRequest) {
     // 2. SEO optimization
     if (optimizeSeo) {
       // Check if we have a cached result first
-      const cachedSeo = resultsCache.get(`seo:${contentHash}`);
+      const cachedEntry = resultsCache.get(`seo:${contentHash}`);
+      const cachedSeo = cachedEntry?.value;
       
       if (cachedSeo) {
         results.seoOptimization = cachedSeo;
@@ -163,7 +176,10 @@ export async function POST(request: NextRequest) {
               results.seoOptimization = seoResult;
               
               // Cache the result
-              resultsCache.set(`seo:${contentHash}`, seoResult);
+              resultsCache.set(`seo:${contentHash}`, {
+                value: seoResult,
+                timestamp: Date.now()
+              });
               setTimeout(() => resultsCache.delete(`seo:${contentHash}`), CACHE_TTL);
               
               // Generate meta tags if applicable

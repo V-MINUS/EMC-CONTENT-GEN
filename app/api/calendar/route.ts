@@ -4,15 +4,25 @@ import { addDays, format } from 'date-fns';
 
 // Temporarily store calendar data in memory
 // In a real app, this would be stored in a database
-let calendarEntries: any[] = [];
+interface CalendarEntry {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  content?: string;
+  status?: string;
+}
+
+let calendarEntries: CalendarEntry[] = [];
 
 export async function GET() {
   try {
     return NextResponse.json({ entries: calendarEntries });
-  } catch (error: any) {
+  } catch (error: Error | unknown) {
     console.error('Error fetching calendar entries:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch calendar entries' },
+      { error: errorMessage || 'Failed to fetch calendar entries' },
       { status: 500 }
     );
   }
@@ -125,10 +135,11 @@ export async function POST(request: NextRequest) {
       { error: 'Invalid action' },
       { status: 400 }
     );
-  } catch (error: any) {
+  } catch (error: Error | unknown) {
     console.error('Error managing calendar:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Failed to process calendar request' },
+      { error: errorMessage || 'Failed to process calendar request' },
       { status: 500 }
     );
   }
