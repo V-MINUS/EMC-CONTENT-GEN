@@ -1,0 +1,553 @@
+'use client';
+
+import React, { useState } from 'react';
+import Layout from './components/Layout';
+import ParticlesBackground from './components/ParticlesBackground';
+import ErrorMessage from './components/ErrorMessage';
+import ResearchPanel from './components/ResearchPanel';
+import ContentCalendar from './components/ContentCalendar';
+import Link from 'next/link';
+import { Calendar } from 'lucide-react';
+
+// Tool categories for the different content generation options
+interface ToolCategory {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+}
+
+// Content template types
+interface ContentTemplate {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  promptTemplate: string;
+}
+
+// Content calendar entry
+interface CalendarEntry {
+  id: number;
+  date: string;
+  title: string;
+  type: string;
+  platform: string;
+  status: 'planned' | 'draft' | 'scheduled' | 'published';
+  notes?: string;
+}
+
+// Social media platform
+interface SocialPlatform {
+  id: number;
+  name: string;
+  icon: string;
+  characterLimit: number | null;
+  imageRequired: boolean;
+}
+
+export default function Home() {
+  // Active tool category
+  const [activeCategory, setActiveCategory] = useState<string>('social');
+  
+  // Tool categories
+  const toolCategories: ToolCategory[] = [
+    {
+      id: 'social',
+      name: 'Social Media',
+      icon: 'fab fa-instagram',
+      description: 'Create posts for various social media platforms'
+    },
+    {
+      id: 'video',
+      name: 'Video Content',
+      icon: 'fab fa-youtube',
+      description: 'Generate scripts and descriptions for YouTube and other video content'
+    },
+    {
+      id: 'seo',
+      name: 'SEO Tools',
+      icon: 'fas fa-search',
+      description: 'Optimize your content for search engines'
+    },
+    {
+      id: 'planning',
+      name: 'Content Planning',
+      icon: 'fas fa-calendar-alt',
+      description: 'Plan your content calendar and strategy'
+    },
+    {
+      id: 'research',
+      name: 'Web Research',
+      icon: 'fas fa-globe',
+      description: 'Research artists, venues, and electronic music trends'
+    }
+  ];
+  
+  // Content templates for electronic music content
+  const contentTemplates: ContentTemplate[] = [
+    // Social Media Templates
+    {
+      id: 1,
+      name: "Artist Spotlight",
+      description: "Feature an artist with their bio, music style, and latest releases",
+      icon: "fas fa-user-circle",
+      category: "social",
+      promptTemplate: "Create a social media post spotlighting {artistName}, a {genre} artist known for {keyTraits}. Mention their latest release '{latestRelease}' and their unique sound characteristics."
+    },
+    {
+      id: 2,
+      name: "Event Announcement",
+      description: "Promote an upcoming EMC event with key details",
+      icon: "fas fa-calendar-alt",
+      category: "social",
+      promptTemplate: "Generate an exciting announcement for {eventName} happening on {date} at {venue}. The event features {artists} and focuses on {genre} music. Tickets are {ticketPrice}."
+    },
+    {
+      id: 3,
+      name: "Beat Battle Promotion",
+      description: "Promote EMC's beat battle competitions",
+      icon: "fas fa-trophy",
+      category: "social",
+      promptTemplate: "Create a compelling post announcing our {battleName} beat battle. The theme is {theme}, submission deadline is {deadline}, and the winner gets {prize}. Use hashtag {hashtag}."
+    },
+    {
+      id: 4,
+      name: "Release Announcement",
+      description: "Announce a new music release from the EMC community",
+      icon: "fas fa-compact-disc",
+      category: "social",
+      promptTemplate: "Announce the release of '{trackName}' by {artistName}, out now on {label}. The {genre} track features {keyElements} and is available on {platforms}."
+    },
+    {
+      id: 5,
+      name: "Production Tip",
+      description: "Share music production tips and techniques",
+      icon: "fas fa-sliders-h",
+      category: "social",
+      promptTemplate: "Share a quick tip about {technique} for {genre} production. Explain how to {specificTip} to achieve {desiredResult}."
+    },
+    
+    // Video Content Templates
+    {
+      id: 6,
+      name: "YouTube Tutorial Script",
+      description: "Create a script for a music production tutorial video",
+      icon: "fab fa-youtube",
+      category: "video",
+      promptTemplate: "Generate a script for a {duration} minute YouTube tutorial on {topic} for {skillLevel} producers. Include an intro, {numberOfSteps} steps, and a conclusion with {callToAction}."
+    },
+    {
+      id: 7,
+      name: "Event Aftermovie Voiceover",
+      description: "Create voiceover text for an event recap video",
+      icon: "fas fa-film",
+      category: "video",
+      promptTemplate: "Create a voiceover script for a {duration} minute aftermovie of {eventName} that took place at {venue} featuring {artists}. Highlight the {atmosphere} atmosphere and {highlightMoments}."
+    },
+    {
+      id: 8,
+      name: "Artist Interview Questions",
+      description: "Generate interview questions for an artist",
+      icon: "fas fa-microphone",
+      category: "video",
+      promptTemplate: "Create {numberOfQuestions} insightful interview questions for {artistName}, a {genre} artist known for {keyWorks}. Include questions about their creative process, influences, and {specificTopics}."
+    },
+    
+    // SEO Templates
+    {
+      id: 9,
+      name: "Event SEO Description",
+      description: "Create SEO-optimized event descriptions",
+      icon: "fas fa-search",
+      category: "seo",
+      promptTemplate: "Generate an SEO-optimized description for {eventName} happening on {date} at {venue}. Target keywords: {targetKeywords}. Include relevant information about {artists} and the {genre} scene."
+    },
+    {
+      id: 10,
+      name: "Artist Bio Optimizer",
+      description: "Optimize artist bios for search engines",
+      icon: "fas fa-user-edit",
+      category: "seo",
+      promptTemplate: "Optimize this artist bio for SEO: {existingBio}. Target keywords: {targetKeywords}. Maintain the artist's unique voice while improving searchability."
+    },
+    
+    // Planning Templates
+    {
+      id: 11,
+      name: "Content Calendar Generator",
+      description: "Create a content calendar for upcoming posts",
+      icon: "fas fa-calendar-week",
+      category: "planning",
+      promptTemplate: "Generate a {timeframe} content calendar for our electronic music platform focusing on {contentFocus}. Include {numberOfPosts} post ideas covering {topicAreas} with optimal posting schedules."
+    },
+    
+    // Research Templates
+    {
+      id: 12,
+      name: "Artist Research",
+      description: "Gather information about electronic music artists",
+      icon: "fas fa-search",
+      category: "research",
+      promptTemplate: "Research {artistName}, gathering key information about their musical style, notable releases, career highlights, and {specificDetails}. Format as bullet points for easy content creation."
+    },
+    {
+      id: 13,
+      name: "Electronic Music Trend Analysis",
+      description: "Research current trends in electronic music",
+      icon: "fas fa-chart-line",
+      category: "research",
+      promptTemplate: "Research current trends in {subgenre} electronic music, focusing on {specificAspects}. Identify key artists, upcoming events, and production techniques defining this trend."
+    }
+  ];
+
+  // Social media platforms
+  const socialPlatforms: SocialPlatform[] = [
+    {
+      id: 1,
+      name: "Instagram",
+      icon: "fab fa-instagram",
+      characterLimit: 2200,
+      imageRequired: true
+    },
+    {
+      id: 2,
+      name: "Twitter",
+      icon: "fab fa-twitter",
+      characterLimit: 280,
+      imageRequired: false
+    },
+    {
+      id: 3,
+      name: "Facebook",
+      icon: "fab fa-facebook",
+      characterLimit: 63206,
+      imageRequired: false
+    },
+    {
+      id: 4,
+      name: "TikTok",
+      icon: "fab fa-tiktok",
+      characterLimit: 2200,
+      imageRequired: true
+    }
+  ];
+
+  // Additional state for new features
+  const [contentCalendar, setContentCalendar] = useState<CalendarEntry[]>([]);
+  const [researchResults, setResearchResults] = useState<string>('');
+  const [seoSuggestions, setSeoSuggestions] = useState<string[]>([]);
+  
+  // States
+  const [activeView, setActiveView] = useState<'generator' | 'calendar' | 'research'>('generator');
+  const [selectedTemplate, setSelectedTemplate] = useState<ContentTemplate | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform | null>(null);
+  const [templateFields, setTemplateFields] = useState<{[key: string]: string}>({});
+  const [generatedContent, setGeneratedContent] = useState<string>('');
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+
+  // Parse the template to extract required fields
+  const extractFields = (template: string): string[] => {
+    const matches = template.match(/\{([^}]+)\}/g) || [];
+    return matches.map(match => match.replace(/[{}]/g, ''));
+  };
+
+  // Handle template change
+  const handleTemplateChange = (template: ContentTemplate) => {
+    setSelectedTemplate(template);
+    const fields = extractFields(template.promptTemplate);
+    const newFields: {[key: string]: string} = {};
+    fields.forEach(field => {
+      newFields[field] = '';
+    });
+    setTemplateFields(newFields);
+    setGeneratedContent('');
+    setGeneratedImage(null);
+  };
+
+  // Handle form input changes
+  const handleFieldChange = (field: string, value: string) => {
+    setTemplateFields(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+  
+  // Filter templates by active category
+  const filteredTemplates = contentTemplates.filter(
+    template => template.category === activeCategory
+  );
+  
+  // Handle category change
+  const handleCategoryChange = (categoryId: string) => {
+    setActiveCategory(categoryId);
+    setSelectedTemplate(null);
+    setTemplateFields({});
+    setGeneratedContent('');
+    setGeneratedImage(null);
+    setSeoSuggestions([]);
+  };
+  
+  // SEO suggestions based on content
+  const generateSeoSuggestions = (content: string) => {
+    // In a real implementation, this would use NLP to extract keywords
+    // For now, we'll simulate with some electronic music related keywords
+    const musicKeywords = [
+      'electronic music cork', 'electronic music ireland', 'beat battle competition',
+      'techno events cork', 'house music ireland', 'electronic music council',
+      'electronic music production', 'cork nightlife', 'irish electronic artists'
+    ];
+    
+    // Randomly select 3-5 keywords
+    const numSuggestions = Math.floor(Math.random() * 3) + 3;
+    const shuffled = [...musicKeywords].sort(() => 0.5 - Math.random());
+    
+    setSeoSuggestions(shuffled.slice(0, numSuggestions));
+  };
+
+  // Generate content based on template and filled fields
+  const generateContent = async () => {
+    if (!selectedTemplate) return;
+    
+    // Only require platform selection for social media posts
+    if (activeCategory === 'social' && !selectedPlatform) return;
+    
+    setIsGenerating(true);
+    setError('');
+    
+    try {
+      // Construct the prompt from the template
+      let prompt = selectedTemplate.promptTemplate;
+      
+      // Replace placeholders with form values
+      Object.entries(templateFields).forEach(([key, value]) => {
+        prompt = prompt.replace(`{${key}}`, value);
+      });
+
+      // Determine if we should include an image based on platform or category
+      const includeImage = selectedPlatform?.imageRequired || activeCategory === 'video';
+      
+      // Use our server-side API route
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          includeImage,
+          category: activeCategory,
+          platform: selectedPlatform?.id.toString() || '',
+          topic: templateFields.topic || templateFields.keywords || '',
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate content');
+      }
+      
+      const data = await response.json();
+
+      // Set results
+      setGeneratedContent(data.content);
+      setGeneratedImage(data.imageUrl);
+      
+      // Generate SEO suggestions if relevant
+      if (activeCategory === 'social' || activeCategory === 'seo') {
+        generateSeoSuggestions(data.content);
+      }
+      
+      // Scroll to results
+      setTimeout(() => {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }, 100);
+      
+    } catch (err: any) {
+      console.error('Error generating content:', err);
+      setError(err.message || 'Failed to generate content. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <Layout>
+      <ParticlesBackground />
+      
+      <div className="container mx-auto px-4 py-8 max-w-7xl relative z-10">
+        {/* Background gradient overlay */}
+        <div className="fixed inset-0 bg-gradient-to-b from-background to-background-alt/80 -z-10"></div>
+        
+        {/* Hero Section */}
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-text-light mb-4">
+              EMC <span className="text-accent">Content Generator</span>
+            </h1>
+            <p className="text-text-muted text-lg">
+              All-in-one AI content creation for Electronic Music Council
+            </p>
+          </div>
+            <div className="space-y-4">
+              {filteredTemplates.map(template => (
+                <div 
+                  key={template.id}
+                  className={`cursor-pointer p-4 rounded-md transition-all ${
+                    selectedTemplate?.id === template.id 
+                      ? 'bg-primary bg-opacity-20 border border-primary' 
+                      : 'bg-background-dark hover:bg-background-dark hover:bg-opacity-80'
+                  }`}
+                  onClick={() => handleTemplateChange(template)}
+                >
+                  <div className="flex items-center gap-3">
+                    <i className={`${template.icon} text-secondary text-xl`}></i>
+                    <h3 className="font-medium text-text-light">{template.name}</h3>
+                  </div>
+                  <p className="text-text-muted text-sm mt-2">{template.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Middle column - Form */}
+          <div className="bg-background-alt rounded-lg p-6 border border-border">
+            <h2 className="text-xl font-semibold text-text-light mb-4">
+              {selectedTemplate ? selectedTemplate.name : 'Template Details'}
+            </h2>
+            
+            {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+            
+            {selectedTemplate ? (
+              <>
+                <h3 className="text-lg font-medium text-secondary mb-2">{selectedTemplate.name}</h3>
+                <div className="space-y-4 mt-4">
+                  {extractFields(selectedTemplate.promptTemplate).map(field => (
+                    <div key={field} className="form-group">
+                      <label className="block text-text-light mb-2 capitalize">
+                        {field.replace(/([A-Z])/g, ' $1').trim()}
+                      </label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-background-dark border border-border rounded-md p-2 text-text-light"
+                        value={templateFields[field] || ''}
+                        onChange={(e) => handleFieldChange(field, e.target.value)}
+                        placeholder={`Enter ${field.replace(/([A-Z])/g, ' $1').toLowerCase().trim()}`}
+                      />
+                    </div>
+                  ))}
+                  
+                  {activeCategory === 'social' && (
+                    <div className="form-group mt-6">
+                      <label className="block text-text-light mb-2">Platform</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {socialPlatforms.map(platform => (
+                          <div 
+                            key={platform.id}
+                            className={`cursor-pointer p-3 rounded-md flex items-center gap-2 transition-all ${
+                              selectedPlatform?.id === platform.id 
+                                ? 'bg-primary bg-opacity-20 border border-primary' 
+                                : 'bg-background-dark hover:bg-background-dark hover:bg-opacity-80'
+                            }`}
+                            onClick={() => setSelectedPlatform(platform)}
+                          >
+                            <i className={`${platform.icon} text-secondary`}></i>
+                            <span className="text-text-light">{platform.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <button 
+                    className="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-3 px-4 rounded-md mt-4 transition-colors flex justify-center items-center"
+                    onClick={generateContent}
+                    disabled={isGenerating || (activeCategory === 'social' && !selectedPlatform)}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-bolt mr-2"></i>
+                        Generate Content
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                <i className="fas fa-hand-point-left text-3xl mb-4 block"></i>
+                <p>Select a template to get started</p>
+              </div>
+            )}
+          </div>
+          
+          {/* Right column - Generated Content */}
+          <div className="bg-background-alt rounded-lg p-6 border border-border">
+            <h2 className="text-xl font-semibold text-text-light mb-4">Generated Content</h2>
+            
+            {generatedContent ? (
+              <div className="space-y-4">
+                {generatedImage && (
+                  <div className="mb-4">
+                    <img
+                      src={generatedImage}
+                      alt="Generated content"
+                      className="rounded-lg w-full h-48 object-cover"
+                    />
+                  </div>
+                )}
+                <div className="bg-background-dark p-4 rounded-lg whitespace-pre-wrap text-text-light">
+                  {generatedContent}
+                </div>
+                
+                <div className="flex space-x-2 mt-4">
+                  <button 
+                    className="bg-secondary px-3 py-2 rounded text-white text-sm flex items-center"
+                    onClick={() => navigator.clipboard.writeText(generatedContent)}
+                  >
+                    <i className="fas fa-copy mr-2"></i>
+                    Copy
+                  </button>
+                  <button className="bg-background-dark px-3 py-2 rounded text-text-light text-sm flex items-center">
+                    <i className="fas fa-download mr-2"></i>
+                    Download
+                  </button>
+                </div>
+                
+                {seoSuggestions.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-medium text-text-light mb-2">SEO Keyword Suggestions</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {seoSuggestions.map((keyword, idx) => (
+                        <span key={idx} className="bg-background-dark px-3 py-1 rounded-full text-sm text-secondary">
+                          #{keyword.replace(/\s+/g, '')}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-gray-400 py-16">
+                <i className="fas fa-wand-magic-sparkles text-3xl mb-4 block"></i>
+                <p className="text-center mb-1">Your generated content will appear here</p>
+                <p className="text-center text-sm text-gray-500">Using AI-powered technology to generate electronic music content</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}

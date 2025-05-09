@@ -1,0 +1,81 @@
+import { NextRequest, NextResponse } from 'next/server';
+import * as openai from '../../lib/openai';
+import * as huggingface from '../../lib/huggingface';
+
+// Get the configured provider from environment
+const textProvider = process.env.NEXT_PUBLIC_TEXT_PROVIDER || 'openai';
+const imageProvider = process.env.NEXT_PUBLIC_IMAGE_PROVIDER || 'huggingface';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { prompt, includeImage, category, platform } = await request.json();
+
+    if (!prompt) {
+      return NextResponse.json(
+        { error: 'Prompt is required' },
+        { status: 400 }
+      );
+    }
+
+    // Enhanced prompt with electronic music context depending on category
+    let enhancedPrompt = prompt;
+    
+    // Add category-specific context to the prompt
+    if (category === 'social') {
+      enhancedPrompt = `As an electronic music content creator for the Electronic Music Council, ${prompt} Ensure the content is engaging and optimized for ${platform || 'social media'}.`;
+    } else if (category === 'video') {
+      enhancedPrompt = `As an electronic music video content specialist for the Electronic Music Council, ${prompt} Make the script dynamic and engaging for the electronic music audience.`;
+    } else if (category === 'seo') {
+      enhancedPrompt = `As an SEO specialist for the Electronic Music Council's content, ${prompt} Focus on electronic music keywords and search optimization.`;
+    } else if (category === 'research') {
+      enhancedPrompt = `As an electronic music researcher for the Electronic Music Council, ${prompt} Provide accurate and comprehensive information about the electronic music scene.`;
+    } else if (category === 'planning') {
+      enhancedPrompt = `As a content strategist for the Electronic Music Council, ${prompt} Develop a coherent content plan that aligns with electronic music events and trends.`;
+    }
+
+    // Generate content based on the configured provider
+    let content = '';
+    if (textProvider === 'openai') {
+      content = await openai.generateContent(enhancedPrompt);
+    } else {
+      content = await huggingface.generateContent(enhancedPrompt);
+    }
+
+    // Generate image if requested
+    let imageUrl = '';
+    if (includeImage) {
+      // Extract key terms for image generation
+      const imagePrompt = `Electronic music ${category} visual inspired by: ${prompt.substring(0, 100)}`;
+      
+      if (imageProvider === 'openai') {
+        imageUrl = await openai.generateImage(imagePrompt);
+      } else {
+        imageUrl = await huggingface.generateImage(imagePrompt);
+      }
+    }
+
+    // Generate SEO suggestions for relevant categories
+    let seoSuggestions: string[] = [];
+    if (category === 'social' || category === 'seo') {
+      if (textProvider === 'openai') {
+        seoSuggestions = await openai.generateSeoSuggestions(content);
+      } else {
+        seoSuggestions = await huggingface.generateSeoSuggestions(content);
+      }
+    }
+
+    return NextResponse.json({
+      content,
+      imageUrl: imageUrl || null,
+      seoSuggestions,
+      category,
+      platform
+    });
+  } catch (error) {
+    console.error('Error generating content:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate content' },
+      { status: 500 }
+    );
+  }
+}

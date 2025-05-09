@@ -1,0 +1,27 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Handle redirects for Next.js
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Environment variable configuration
+[context.production.environment]
+  NEXT_PUBLIC_APP_ENV = "production"
+  NEXT_PUBLIC_APP_NAME = "EMC AI Content Generator"
+
+[context.deploy-preview.environment]
+  NEXT_PUBLIC_APP_ENV = "preview"
+  NEXT_PUBLIC_APP_NAME = "EMC AI Content Generator (Preview)"
