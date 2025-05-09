@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "cross-env NEXT_DISABLE_ESLINT=1 TYPESCRIPT_IGNORE_ERRORS=1 next build",
-    "vercel-build": "cross-env NEXT_DISABLE_ESLINT=1 TYPESCRIPT_IGNORE_ERRORS=1 next build",
+    "vercel-build": "node scripts/vercel-build.js",
     "start": "next start",
     "lint": "next lint"
   },
