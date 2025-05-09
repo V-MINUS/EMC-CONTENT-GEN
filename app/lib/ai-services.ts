@@ -326,18 +326,48 @@ export const contentTones: ContentTone[] = [
 import { RealOpenAIService } from './openai-service';
 import { DeepSeekService } from './deepseek-service';
 import { MultiProviderService } from './multi-provider-service';
+import { createMockServices } from './mock-ai-services';
+
+// We'll dynamically import these services to avoid errors if files don't exist
+// This helps during Vercel build process
+type SEOServiceType = any;
+type PlagiarismServiceType = any;
+
+// Check if we're in Vercel build mode
+const IS_VERCEL_BUILD = process.env.VERCEL_BUILD_MODE === 'true';
 
 // Factory function to create AI service instances based on configuration
 export function createAIServices() {
+  // Use mock services during Vercel build to bypass API key checks
+  if (IS_VERCEL_BUILD || process.env.USE_MOCK_SERVICES === 'true') {
+    console.log('Using MOCK AI services for build or development');
+    return createMockServices();
+  }
+  
   // Get API keys from environment variables
   const openAiKey = process.env.OPENAI_API_KEY || '';
   const deepSeekKey = process.env.DEEPSEEK_API_KEY || null; // Optional DeepSeek API key
   const semrushKey = process.env.SEMRUSH_API_KEY || '';
   const copyScapeKey = process.env.COPYSCAPE_API_KEY || '';
   
-  // Services for SEO and plagiarism
-  const seoService = new SemrushSEOService(semrushKey);
-  const plagiarismService = new CopyScapeService(copyScapeKey);
+  // Use try-catch to handle possible missing service files during build
+  let seoService: SEOServiceType;
+  let plagiarismService: PlagiarismServiceType;
+  
+  try {
+    // These will be imported dynamically only when needed
+    const { SemrushSEOService } = require('./seo-service');
+    const { CopyScapeService } = require('./plagiarism-service');
+    
+    seoService = new SemrushSEOService(semrushKey);
+    plagiarismService = new CopyScapeService(copyScapeKey);
+  } catch (error) {
+    console.warn('Could not load SEO or plagiarism services:', error);
+    // Create mock/stub services if we can't load the real ones
+    const mockServices = createMockServices();
+    seoService = mockServices.seoOptimizer;
+    plagiarismService = mockServices.plagiarismDetector;
+  }
   
   // Debug which API keys we have available
   console.log(`OpenAI API Key present: ${!!openAiKey}`);
