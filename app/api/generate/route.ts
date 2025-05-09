@@ -7,12 +7,26 @@ import { getSafeServices } from '../../lib/build-bypass';
 const services = getSafeServices(createAIServices);
 
 // Cache for plagiarism and SEO results to avoid redundant API calls
-interface CachedResult {
-  value: unknown;
+interface CachedResult<T> {
+  value: T;
   timestamp: number;
 }
 
-const resultsCache = new Map<string, CachedResult>();
+// Define proper types for the SEO optimization results
+interface SEOResult {
+  optimizedContent: string;
+  seoScore: number;
+  keywordDensity: Record<string, number>;
+}
+
+// Define the proper types for SEO options
+interface ExtendedSEOOptions extends SEOOptions {
+  targetLength?: string;
+  platform?: string;
+  industry?: string;
+}
+
+const resultsCache = new Map<string, CachedResult<any>>();
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 // Middleware to log all API requests
@@ -23,9 +37,34 @@ const logRequest = (method: string, data: Record<string, unknown>) => {
   });
 };
 
+// Helper function to add CORS headers
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+}
+
+// Handle OPTIONS requests for CORS preflight
+export async function OPTIONS() {
+  return NextResponse.json(
+    { success: true },
+    { headers: corsHeaders() }
+  );
+}
+
 export async function POST(request: NextRequest) {
   // Log the incoming request
   logRequest('POST', await request.clone().json().catch(() => ({})));
+  
+  // Add debug info about environment
+  console.log('Environment:', {
+    NODE_ENV: process.env.NODE_ENV,
+    OPENAI_KEY_LENGTH: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
+    RUNNING_ON: typeof window === 'undefined' ? 'server' : 'client'
+  });
+  
   try {
     const { 
       prompt, 
@@ -153,7 +192,7 @@ export async function POST(request: NextRequest) {
                 : await services.seoOptimizer.suggestKeywords(topic || category, 'electronic music');
               
               // SEO optimization options
-              const seoOptions: SEOOptions = {
+              const seoOptions: ExtendedSEOOptions = {
                 targetLength: length || 'medium',
                 platform: platform || 'blog'
               };
@@ -196,7 +235,8 @@ export async function POST(request: NextRequest) {
         (async () => {
           try {
             // Extract a good image prompt from the content
-            const firstParagraphMatch = content.match(/^#\s.*?\n\n(.*?)(\n\n|$)/s);
+            // Regular expression to extract first paragraph for image prompt, avoiding 's' flag
+            const firstParagraphMatch = content.match(/^#\s.*?\n\n([\s\S]*?)(\n\n|$)/);
             const imagePrompt = firstParagraphMatch 
               ? `electronic music visual: ${firstParagraphMatch[1].substring(0, 100)}`
               : `electronic music visual related to: ${prompt}`;
@@ -241,13 +281,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       content,
       ...results
+    }, {
+      headers: corsHeaders(),
+      status: 200
     });
   } catch (error) {
     console.error('Content generation error:', error);
+    
+    // Log detailed error information for debugging
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+    }
+    
     return NextResponse.json({ 
-      error: handleApiError(error) 
+      error: handleApiError(error),
+      message: error instanceof Error ? error.message : 'An unknown error occurred',
+      timestamp: new Date().toISOString(),
+      // Include API key status (true/false only, not the actual key)
+      api_status: {
+        openai: !!process.env.OPENAI_API_KEY,
+        deepseek: !!process.env.DEEPSEEK_API_KEY
+      }
     }, { 
-      status: 500 
+      status: 500,
+      headers: corsHeaders()
     });
   }
 }
