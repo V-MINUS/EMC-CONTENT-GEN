@@ -1,33 +1,3 @@
 [build]
   command = "npm run build"
   publish = ".next"
-
-[build.environment]
-  NETLIFY_NEXT_PLUGIN_SKIP = "true"
-  CI = "false"
-  SKIP_TYPESCRIPT_CHECK = "1"
-  NEXT_DISABLE_ESLINT = "1"
-  TYPESCRIPT_IGNORE_ERRORS = "1"
-  OPENAI_API_KEY = "sk-netlify-build-mock-key"
-  DEEPSEEK_API_KEY = "sk-netlify-build-mock-key"
-  USE_MOCK_SERVICES = "true"
-  VERCEL_BUILD_MODE = "true"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-[functions]
-  node_bundler = "esbuild"
-  included_files = ["app/lib/build-bypass/**"]
-  timeout = 30
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  
-[context.deploy-preview.environment]
-  OPENAI_API_KEY = "sk-netlify-build-mock-key"
-  DEEPSEEK_API_KEY = "sk-netlify-build-mock-key"
-  USE_MOCK_SERVICES = "true"
-  NEXT_PUBLIC_APP_ENV = "preview"
