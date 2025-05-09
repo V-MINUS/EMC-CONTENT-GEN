@@ -45,7 +45,5 @@
   OPENAI_API_KEY = "sk-netlify-build-mock-key"
   DEEPSEEK_API_KEY = "sk-netlify-build-mock-key"
   USE_MOCK_SERVICES = "true"
-
-[context.deploy-preview.environment]
   NEXT_PUBLIC_APP_ENV = "preview"
-  NEXT_PUBLIC_APP_NAME = "EMC AI Content Generator (Preview)"
+  NEXT_PUBLIC_APP_NAME = "EMC Electronic Music Content Generator (Preview)"
