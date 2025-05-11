@@ -1,10 +1,10 @@
 # Netlify redirects file (takes precedence over netlify.toml)
 
-# API generate route - direct to the specific serverless function
-/api/generate  /.netlify/functions/api/generate  200!
+# Direct mapping for the generate API endpoint - simplified path
+/api/generate  /.netlify/functions/generate  200!
 
-# Other API routes
-/api/*  /.netlify/functions/api/:splat  200!
+# Fallback for other API paths
+/api/*  /.netlify/functions/:splat  200!
 
 # SPA fallback - handle client-side routing
 /*    /index.html   200
