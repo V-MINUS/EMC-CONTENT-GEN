@@ -390,6 +390,9 @@ export async function PUT(request: NextRequest) {
       refinedContent,
       refinement,
       instructions
+    }, {
+      headers: corsHeaders(),
+      status: 200
     });
   } catch (error) {
     console.error('Content refinement error:', error);

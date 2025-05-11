@@ -78,7 +78,7 @@ const ContentRefiner: React.FC<ContentRefinerProps> = ({ content, onRefinementCo
         },
         body: JSON.stringify({
           content,
-          editInstruction: instruction,
+          instructions: instruction,  // Changed from editInstruction to instructions to match API expectation
           preserveSections: preserveSections.length > 0 ? preserveSections : undefined,
           tone: selectedTone || undefined
         }),
