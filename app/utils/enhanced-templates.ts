@@ -158,7 +158,7 @@ export const enhancedTemplates: ContentTemplate[] = [
     description: "Announce an upcoming electronic music event or festival",
     icon: "fas fa-calendar-day",
     category: "social",
-    promptTemplate: "Create an exciting announcement for the electronic music event {eventName} happening on {date} at {venue}. The event will feature {artists} playing {genre} music. Tickets are {ticketPrice}. Include a call-to-action to buy tickets and relevant hashtags."
+    promptTemplate: "Create an exciting announcement for the electronic music event {eventName} happening on {date} at {venue}. The event will feature headliner {headliner} with support from {supportActs} playing {genre} music. Tickets are {ticketPrice}. {extraFeatures} Include a call-to-action to buy tickets and relevant hashtags."
   },
   {
     id: 3,

@@ -100,6 +100,20 @@ const TemplateForm: React.FC<TemplateFormProps> = ({
         </div>
       ))}
 
+      {/* Extra mentions field for all templates */}
+      <div className="form-group mb-4 mt-6 border-t border-border pt-4">
+        <label className="block text-text-light mb-2 text-sm font-medium">
+          Additional Information (Optional)
+        </label>
+        <TextareaAutosize
+          className="w-full bg-background-alt border border-border rounded-md p-3 text-text-light min-h-[80px] focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-colors"
+          value={formValues['extraFeatures'] || ''}
+          onChange={(e) => handleChange('extraFeatures', e.target.value)}
+          placeholder="Add any additional details (sound system, live visuals, dancers, fire show, etc.)"
+          minRows={2}
+        />
+      </div>
+
       {template.category === 'social' && platforms && (
         <div className="form-group mt-6">
           <label className="block text-text-light mb-2 text-sm font-medium">Platform</label>

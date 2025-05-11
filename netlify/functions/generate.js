@@ -49,7 +49,13 @@ async function generateWithDeepSeek(prompt, options = {}) {
   
   try {
     console.log('Using DeepSeek as fallback');
-    const systemMessage = `You are an expert electronic music content creator specializing in ${options.category || 'electronic music'} content.`;
+    const systemMessage = `You are an expert electronic music content creator specializing in ${options.category || 'electronic music'} content.
+    
+    When writing about events:
+    - Highlight the headliner prominently
+    - Mention support acts clearly
+    - Include special features like sound systems, live visuals, and special effects where mentioned
+    - Create excitement and urgency about the event`;
     
     const requestData = JSON.stringify({
       model: "deepseek-chat",
@@ -109,7 +115,13 @@ async function generateWithOpenAI(prompt, options = {}) {
     
     const systemMessage = `You are an expert electronic music content creator specializing in ${options.category || 'electronic music'} content.
     Create engaging, professional content with expert knowledge of electronic music production, artists, events, and culture.
-    ${options.tone ? `Use a ${options.tone} tone.` : 'Use a professional tone.'}`;
+    ${options.tone ? `Use a ${options.tone} tone.` : 'Use a professional tone.'}
+    
+    When writing about events:
+    - Highlight the headliner prominently
+    - Mention support acts clearly
+    - Include special features like sound systems, live visuals, and special effects where mentioned
+    - Create excitement and urgency about the event`;
     
     const chatCompletion = await openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
