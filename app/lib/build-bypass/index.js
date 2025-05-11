@@ -63,22 +63,28 @@ export const createMockBuildServices = () => {
 
 // Check if we're in a build environment
 export const isBuildEnvironment = () => {
-  // Only return true for actual build environments, not development
-  // This will enable real API services during development
-  
-  // If USE_MOCK_SERVICES is explicitly set, respect it
-  if (process.env.USE_MOCK_SERVICES === 'true') {
+  // 1. Check if we're in a Netlify or Vercel build environment
+  if (process.env.VERCEL_BUILD_MODE === 'true' || process.env.NETLIFY === 'true') {
+    console.log('EMC Generator: Detected build environment (Vercel/Netlify)');
     return true;
   }
   
-  // If USE_MOCK_SERVICES is explicitly false, never use mocks
-  if (process.env.USE_MOCK_SERVICES === 'false') {
-    return false;
+  // 2. Check for explicit mock services flag
+  if (process.env.USE_MOCK_SERVICES === 'true') {
+    console.log('EMC Generator: Using mock services by explicit configuration');
+    return true;
   }
   
-  // Only use mocks during actual Vercel/Netlify build process
-  return process.env.VERCEL_BUILD_STEP === 'true' || 
-         process.env.VERCEL_BUILD_MODE === 'true';
+  // 3. Check for API key availability - use mocks if no keys
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.length > 20;
+  
+  if (!hasOpenAIKey && process.env.NODE_ENV === 'production') {
+    console.log('EMC Generator: No valid API keys found, using mock services');
+    return true;
+  }
+  
+  // 4. Default to false - use real services when possible
+  return false;
 };
 
 // Helper to safely get services without API key errors

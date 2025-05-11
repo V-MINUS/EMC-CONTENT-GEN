@@ -13,8 +13,26 @@ import ResearchPanel from './components/ResearchPanel';
 import ContentCalendar from './components/ContentCalendar';
 
 // Import enhanced templates and platforms
-import { SocialPlatform, ContentTemplate } from './lib/ai-services';
 import enhancedTemplates, { socialPlatforms, toolCategories } from './utils/enhanced-templates';
+
+// Define local interfaces to avoid import errors
+interface SocialPlatform {
+  id: number;
+  name: string;
+  icon: string;
+  characterLimit: number;
+  imageRequired: boolean;
+}
+
+interface ContentTemplate {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;
+  category?: string;
+  promptTemplate: string;
+  formFields?: Record<string, any>[];
+}
 
 interface PlagiarismResult {
   isOriginal: boolean;
@@ -158,13 +176,11 @@ export default function Home() {
       // Determine if we should include an image based on platform or category
       const includeImage = platform?.imageRequired || activeCategory === 'video';
       
-      // Use our enhanced API route
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Use our enhanced API route with improved error handling
+      try {
+        console.log('EMC Generator: Making API request to generate content');
+        
+        const requestBody = {
           prompt,
           includeImage,
           category: activeCategory,
@@ -177,25 +193,58 @@ export default function Home() {
           ethicalCheckEnabled,
           checkPlagiarism,
           optimizeSeo
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate content');
-      }
-      
-      const data = await response.json();
+        };
+        
+        console.log('EMC Generator: Request data', JSON.stringify(requestBody).substring(0, 150) + '...');
+        
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+        
+        console.log('EMC Generator: Response status:', response.status);
+        
+        // Handle non-OK responses
+        if (!response.ok) {
+          let errorMessage = 'Failed to generate content';
+          
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+            console.error('EMC Generator: API error response:', errorData);
+          } catch (parseError) {
+            console.error('EMC Generator: Could not parse error response', parseError);
+          }
+          
+          throw new Error(errorMessage);
+        }
+        
+        // Parse successful response
+        let data;
+        try {
+          data = await response.json();
+          console.log('EMC Generator: Successfully received response data');
+        } catch (parseError) {
+          console.error('EMC Generator: Error parsing successful response', parseError);
+          throw new Error('Error parsing response data');
+        }
 
-      // Set results
-      setGeneratedContentData({
-        content: data.content,
-        imageUrl: data.imageUrl,
-        plagiarismCheck: data.plagiarismCheck,
-        seoOptimization: data.seoOptimization,
-        metaTags: data.metaTags,
-        suggestedKeywords: data.suggestedKeywords || []
-      });
+        // Set results
+        setGeneratedContentData({
+          content: data.content,
+          imageUrl: data.imageUrl,
+          plagiarismCheck: data.plagiarismCheck,
+          seoOptimization: data.seoOptimization,
+          metaTags: data.metaTags,
+          suggestedKeywords: data.suggestedKeywords || []
+        });
+      } catch (innerError) {
+        console.error('EMC Generator: Error in inner content generation:', innerError);
+        throw innerError;
+      }
       
       // Scroll to results
       setTimeout(() => {

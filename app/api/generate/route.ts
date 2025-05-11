@@ -61,7 +61,8 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+    'Access-Control-Max-Age': '86400', // 24 hours
   };
 }
 
@@ -74,31 +75,59 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
-  // Clone the request to read its body multiple times
-  const requestData = await request.clone().json().catch(() => ({}));
+  // Add CORS headers to all responses
+  const headers = corsHeaders();
   
-  // Log the incoming request (sanitized)
-  logRequest('POST', requestData);
+  // Initialize requestData with default empty object
+  let requestData: Record<string, any> = {};
   
-  // Add debug info about environment
-  console.log('Environment:', {
-    NODE_ENV: process.env.NODE_ENV,
-    OPENAI_KEY_LENGTH: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
-    RUNNING_ON: typeof window === 'undefined' ? 'server' : 'client'
-  });
-  
-  // Check if result is in cache (only for non-production or if caching is enabled)
-  if (ENABLE_CACHING && process.env.NODE_ENV !== 'production') {
-    const cacheKey = generateCacheKey(requestData);
-    const cachedResult = requestCache.get(cacheKey);
+  try {
+    // Clone the request to read its body multiple times
+    requestData = await request.clone().json().catch((e) => {
+      console.error('Error parsing request JSON:', e);
+      return {};
+    });
     
-    if (isCacheValid(cachedResult)) {
-      console.log('Cache hit for request: Using cached result');
-      return NextResponse.json(cachedResult.value, {
-        headers: corsHeaders(),
-        status: 200
+    // Log the incoming request (sanitized)
+    logRequest('POST', requestData);
+    
+    // Add debug info about environment
+    console.log('EMC API Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      OPENAI_KEY_LENGTH: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
+      RUNNING_ON: typeof window === 'undefined' ? 'server' : 'client',
+      IS_NETLIFY: process.env.NETLIFY === 'true',
+      USE_MOCK_SERVICES: process.env.USE_MOCK_SERVICES
+    });
+    
+    // Safety check to ensure we have a valid request
+    if (!requestData || Object.keys(requestData).length === 0) {
+      console.error('Empty or invalid request data');
+      return NextResponse.json({ error: 'Invalid request data' }, {
+        status: 400,
+        headers
       });
     }
+    
+    // Check if result is in cache (only for non-production or if caching is enabled)
+    if (ENABLE_CACHING && process.env.NODE_ENV !== 'production') {
+      const cacheKey = generateCacheKey(requestData);
+      const cachedResult = requestCache.get(cacheKey);
+      
+      if (isCacheValid(cachedResult)) {
+        console.log('Cache hit for request: Using cached result');
+        return NextResponse.json(cachedResult.value, {
+          headers,
+          status: 200
+        });
+      }
+    }
+  } catch (outerError) {
+    console.error('Outer error in POST handler:', outerError);
+    return NextResponse.json({ error: 'Server error processing request' }, {
+      status: 500,
+      headers
+    });
   }
   
   try {
@@ -385,6 +414,10 @@ async function regenerateContent(enhancedPrompt: string, textOptions: TextGenera
 
 // Human-in-the-loop editing endpoint
 export async function PUT(request: NextRequest) {
+  // Add CORS headers to all responses
+  const headers = corsHeaders();
+  
+  // Log the incoming request
   logRequest('PUT', await request.clone().json().catch(() => ({})));
   
   try {
@@ -443,12 +476,27 @@ export async function PUT(request: NextRequest) {
       headers: corsHeaders(),
       status: 200
     });
-  } catch (error) {
-    console.error('Content refinement error:', error);
+  } catch (error: any) {
+    // Log detailed error information for debugging
+    console.error('Error generating content:', error?.message || error);
+    if (error?.stack) {
+      console.error('Error stack:', error.stack);
+    }
+    
+    // Prepare a safe error message for the client
+    const errorMessage = handleApiError(error);
+    
+    // Return a properly formatted error response with CORS headers
     return NextResponse.json({ 
-      error: handleApiError(error) 
+      error: errorMessage,
+      success: false,
+      message: 'Content generation failed, please try again',
+      timestamp: new Date().toISOString()
     }, { 
-      status: 500 
+      status: 500,
+      headers // Using the pre-defined headers with CORS support
     });
   }
 }
+
+// ... (rest of the code remains the same)
