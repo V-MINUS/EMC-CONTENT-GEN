@@ -6,10 +6,32 @@ import { getSafeServices } from '../../lib/build-bypass';
 // Initialize services with build-safe approach
 const services = getSafeServices(createAIServices);
 
-// Cache for plagiarism and SEO results to avoid redundant API calls
+// Cache configuration for API requests
+const ENABLE_CACHING = true;
+const CACHE_TTL = 1000 * 60 * 60; // 1 hour
+
+// Cache for plagiarism, SEO results, and content to avoid redundant API calls
 interface CachedResult<T> {
   value: T;
   timestamp: number;
+}
+
+// Caches for different types of data
+const requestCache = new Map<string, CachedResult<any>>(); // For full API requests
+const resultsCache = new Map<string, CachedResult<any>>(); // For individual results like plagiarism checks
+
+// Helper to check if a cached item is still valid
+function isCacheValid<T>(cached: CachedResult<T> | undefined): cached is CachedResult<T> {
+  if (!cached) return false;
+  const now = Date.now();
+  return now - cached.timestamp < CACHE_TTL;
+}
+
+// Generate a cache key from request parameters
+function generateCacheKey(data: Record<string, any>): string {
+  // Only cache based on core content generation parameters
+  const { prompt, category, platform, topic, tone, length } = data;
+  return JSON.stringify({ prompt, category, platform, topic, tone, length });
 }
 
 // Define proper types for the SEO optimization results
@@ -25,9 +47,6 @@ interface ExtendedSEOOptions extends SEOOptions {
   platform?: string;
   industry?: string;
 }
-
-const resultsCache = new Map<string, CachedResult<any>>();
-const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 // Middleware to log all API requests
 const logRequest = (method: string, data: Record<string, unknown>) => {
@@ -55,8 +74,11 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
-  // Log the incoming request
-  logRequest('POST', await request.clone().json().catch(() => ({})));
+  // Clone the request to read its body multiple times
+  const requestData = await request.clone().json().catch(() => ({}));
+  
+  // Log the incoming request (sanitized)
+  logRequest('POST', requestData);
   
   // Add debug info about environment
   console.log('Environment:', {
@@ -64,6 +86,20 @@ export async function POST(request: NextRequest) {
     OPENAI_KEY_LENGTH: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
     RUNNING_ON: typeof window === 'undefined' ? 'server' : 'client'
   });
+  
+  // Check if result is in cache (only for non-production or if caching is enabled)
+  if (ENABLE_CACHING && process.env.NODE_ENV !== 'production') {
+    const cacheKey = generateCacheKey(requestData);
+    const cachedResult = requestCache.get(cacheKey);
+    
+    if (isCacheValid(cachedResult)) {
+      console.log('Cache hit for request: Using cached result');
+      return NextResponse.json(cachedResult.value, {
+        headers: corsHeaders(),
+        status: 200
+      });
+    }
+  }
   
   try {
     const { 
@@ -277,11 +313,24 @@ export async function POST(request: NextRequest) {
     // Wait for all operations to complete
     await Promise.all(operations);
     
-    // Return the final enhanced content and results
-    return NextResponse.json({
+    // Prepare the response data
+    const responseData = {
       content,
       ...results
-    }, {
+    };
+    
+    // Cache the successful response if caching is enabled
+    if (ENABLE_CACHING) {
+      const cacheKey = generateCacheKey(requestData); 
+      requestCache.set(cacheKey, {
+        value: responseData,
+        timestamp: Date.now()
+      });
+      console.log('Saved result to cache for future requests');
+    }
+    
+    // Return the final enhanced content and results
+    return NextResponse.json(responseData, {
       headers: corsHeaders(),
       status: 200
     });
