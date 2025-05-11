@@ -29,14 +29,10 @@ const nextConfig = {
       },
     ];
   },
-  // Optimize for production builds
-  swcMinify: true,
   // Configure environment variable loading
   env: {
     NEXT_PUBLIC_APP_NAME: 'EMC Electronic Music Content Generator',
-  },
-  // Optimize for Netlify specifically
-  target: 'serverless'
+  }
 }
 
 module.exports = nextConfig
