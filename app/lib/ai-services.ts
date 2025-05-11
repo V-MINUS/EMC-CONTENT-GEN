@@ -338,11 +338,13 @@ const IS_VERCEL_BUILD = process.env.VERCEL_BUILD_MODE === 'true';
 
 // Factory function to create AI service instances based on configuration
 export function createAIServices() {
-  // Use mock services during Vercel build to bypass API key checks
-  if (IS_VERCEL_BUILD || process.env.USE_MOCK_SERVICES === 'true') {
-    console.log('Using MOCK AI services for build or development');
+  // Only use mock services during actual Vercel build process - not during normal operation
+  if (IS_VERCEL_BUILD && process.env.NODE_ENV !== 'development' && process.env.USE_MOCK_SERVICES !== 'false') {
+    console.log('EMC Generator: Using mock services for build or preview');
     return createMockServices();
   }
+  
+  console.log('EMC Generator: Using REAL OpenAI services for content generation');
   
   // Get API keys from environment variables
   const openAiKey = process.env.OPENAI_API_KEY || '';

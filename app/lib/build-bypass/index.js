@@ -63,10 +63,21 @@ export const createMockBuildServices = () => {
 
 // Check if we're in a build environment
 export const isBuildEnvironment = () => {
-  return process.env.NODE_ENV !== 'production' || 
-         process.env.VERCEL_ENV === 'preview' || 
-         !process.env.OPENAI_API_KEY ||
-         process.env.VERCEL_BUILD_STEP === 'true' ||
+  // Only return true for actual build environments, not development
+  // This will enable real API services during development
+  
+  // If USE_MOCK_SERVICES is explicitly set, respect it
+  if (process.env.USE_MOCK_SERVICES === 'true') {
+    return true;
+  }
+  
+  // If USE_MOCK_SERVICES is explicitly false, never use mocks
+  if (process.env.USE_MOCK_SERVICES === 'false') {
+    return false;
+  }
+  
+  // Only use mocks during actual Vercel/Netlify build process
+  return process.env.VERCEL_BUILD_STEP === 'true' || 
          process.env.VERCEL_BUILD_MODE === 'true';
 };
 
