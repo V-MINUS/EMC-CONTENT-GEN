@@ -2,6 +2,10 @@
   command = "npm run netlify-build && npm run build"
   publish = ".next"
   functions = "netlify/functions"  # Directory with serverless functions
+  
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild" # Use esbuild for smaller bundles
 
 [build.environment]
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
